@@ -23,7 +23,7 @@ st.set_page_config(
     page_title="Sonic Insight",
     page_icon="🎧",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 
@@ -34,35 +34,35 @@ def render_header() -> str:
         unsafe_allow_html=True,
     )
 
+    env_col, mode_col = st.columns([1, 2])
+    with env_col:
+        sp_ok = get_spotify_client() is not None
+        info_banner(sp_ok)
+    with mode_col:
+        if not sp_ok:
+            st.caption("No-key mode active with public music data. Add Spotify keys later for full Spotify-native results.")
+
     st.markdown("<div class='hero-card'>", unsafe_allow_html=True)
     global_query = st.text_input("Search bar", placeholder="Try: Arctic Monkeys, nostalgic synthwave, jazz fusion...")
     st.markdown("</div>", unsafe_allow_html=True)
     return global_query
 
 
-def sidebar_nav() -> str:
-    with st.sidebar:
-        st.markdown("<div class='sidebar-header'>Sonic Insight</div>", unsafe_allow_html=True)
-        st.caption("Spotify-like AI workstation")
-
-        display_options = list(NAV_ITEMS.values())
-        selected_display = st.radio("Menu", display_options)
-        feature_name = [k for k, v in NAV_ITEMS.items() if v == selected_display][0]
-
-        st.markdown("---")
-        st.caption("Environment")
-        sp_ok = get_spotify_client() is not None
-        info_banner(sp_ok)
-
-        if not sp_ok:
-            st.info("Running in no-key mode with public music data. Add Spotify keys later for full Spotify-native results.")
-
-        return feature_name
+def top_nav() -> str:
+    st.markdown("### Menu")
+    display_options = list(NAV_ITEMS.values())
+    selected_display = st.radio(
+        "Navigation",
+        display_options,
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    return [k for k, v in NAV_ITEMS.items() if v == selected_display][0]
 
 
 def main() -> None:
     inject_css()
-    selected = sidebar_nav()
+    selected = top_nav()
     global_query = render_header()
 
     if selected == "Album Analyzer":
