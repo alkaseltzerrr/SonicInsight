@@ -27,6 +27,8 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+NAV_STATE_KEY = "top_nav_feature"
+
 
 def render_header() -> str:
     st.markdown("<div class='main-title'>Sonic Insight</div>", unsafe_allow_html=True)
@@ -50,37 +52,33 @@ def render_header() -> str:
 
 
 def top_nav() -> str:
-    if "selected_feature" not in st.session_state:
-        st.session_state["selected_feature"] = "Home"
-
     keys = list(NAV_ITEMS.keys())
-    current = st.session_state.get("selected_feature", "Home")
-    if current not in keys:
-        current = "Home"
+    if NAV_STATE_KEY not in st.session_state or st.session_state.get(NAV_STATE_KEY) not in keys:
+        st.session_state[NAV_STATE_KEY] = "Home"
 
     st.markdown("<div class='nav-shell'>", unsafe_allow_html=True)
     st.markdown("<div class='nav-title'>Navigation</div>", unsafe_allow_html=True)
 
     if hasattr(st, "segmented_control"):
-        selected = st.segmented_control(
+        st.segmented_control(
             "Navigation",
             options=keys,
-            default=current,
+            key=NAV_STATE_KEY,
             format_func=lambda key: NAV_ITEMS[key],
             label_visibility="collapsed",
         )
     else:
-        display_options = [NAV_ITEMS[k] for k in keys]
-        selected_display = st.radio(
+        st.radio(
             "Navigation",
-            display_options,
+            options=keys,
             horizontal=True,
+            key=NAV_STATE_KEY,
+            format_func=lambda key: NAV_ITEMS[key],
             label_visibility="collapsed",
-            index=keys.index(current),
         )
-        selected = [k for k, v in NAV_ITEMS.items() if v == selected_display][0]
 
     st.markdown("</div>", unsafe_allow_html=True)
+    selected = st.session_state.get(NAV_STATE_KEY, "Home")
     st.session_state["selected_feature"] = selected
     return selected
 

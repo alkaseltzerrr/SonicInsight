@@ -42,6 +42,7 @@ def render_home() -> None:
             )
             if st.button(f"Open {title}", key=f"home_open_{idx}"):
                 st.session_state["selected_feature"] = title
+                st.session_state["top_nav_feature"] = title
                 st.rerun()
 
     st.markdown("### Quick Widgets")
@@ -55,5 +56,6 @@ def render_home() -> None:
         quick_prompt = st.text_input("Quick playlist prompt", placeholder="rainy chill indie")
         if st.button("Use In Playlist Curator", key="quick_playlist_jump"):
             st.session_state["selected_feature"] = "Playlist Curator"
+            st.session_state["top_nav_feature"] = "Playlist Curator"
             st.session_state["quick_playlist_prompt"] = quick_prompt
             st.rerun()
