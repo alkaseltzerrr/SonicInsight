@@ -45,9 +45,12 @@ def render_header() -> str:
         if not sp_ok:
             st.caption("No-key mode active with public music data. Add Spotify keys later for full Spotify-native results.")
 
-    st.markdown("<div class='hero-card'>", unsafe_allow_html=True)
-    global_query = st.text_input("Search bar", placeholder="Try: Arctic Monkeys, nostalgic synthwave, jazz fusion...")
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.caption("Search")
+    global_query = st.text_input(
+        "Search bar",
+        placeholder="Try: Arctic Monkeys, nostalgic synthwave, jazz fusion...",
+        label_visibility="collapsed",
+    )
     return global_query
 
 
@@ -56,7 +59,6 @@ def top_nav() -> str:
     if NAV_STATE_KEY not in st.session_state or st.session_state.get(NAV_STATE_KEY) not in keys:
         st.session_state[NAV_STATE_KEY] = "Home"
 
-    st.markdown("<div class='nav-shell'>", unsafe_allow_html=True)
     st.markdown("<div class='nav-title'>Navigation</div>", unsafe_allow_html=True)
 
     if hasattr(st, "segmented_control"):
@@ -77,7 +79,6 @@ def top_nav() -> str:
             label_visibility="collapsed",
         )
 
-    st.markdown("</div>", unsafe_allow_html=True)
     selected = st.session_state.get(NAV_STATE_KEY, "Home")
     st.session_state["selected_feature"] = selected
     return selected
