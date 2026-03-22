@@ -1,0 +1,12 @@
+streamlit
+spotipy
+transformers
+torch
+scikit-learn
+plotly
+pandas
+numpy
+librosa
+faiss-cpu
+huggingface_hub
+requests
