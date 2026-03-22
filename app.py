@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import random
 import re
+import hashlib
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -208,13 +209,21 @@ NAV_ITEMS = {
 # -----------------------------
 # Caching and Clients
 # -----------------------------
+def safe_secret_get(key: str, default: str = "") -> str:
+    """Read a Streamlit secret without crashing when no secrets file exists."""
+    try:
+        return st.secrets.get(key, default)
+    except Exception:
+        return default
+
+
 @st.cache_resource(show_spinner=False)
 def get_spotify_client():
     if spotipy is None or SpotifyClientCredentials is None:
         return None
 
-    client_id = st.secrets.get("SPOTIPY_CLIENT_ID", os.getenv("SPOTIPY_CLIENT_ID", ""))
-    client_secret = st.secrets.get("SPOTIPY_CLIENT_SECRET", os.getenv("SPOTIPY_CLIENT_SECRET", ""))
+    client_id = safe_secret_get("SPOTIPY_CLIENT_ID", os.getenv("SPOTIPY_CLIENT_ID", ""))
+    client_secret = safe_secret_get("SPOTIPY_CLIENT_SECRET", os.getenv("SPOTIPY_CLIENT_SECRET", ""))
 
     if not client_id or not client_secret:
         return None
@@ -248,7 +257,7 @@ def get_lyrics_generation_pipeline():
 
 @st.cache_resource(show_spinner=False)
 def get_hf_client():
-    token = st.secrets.get("HF_TOKEN", os.getenv("HF_TOKEN", ""))
+    token = safe_secret_get("HF_TOKEN", os.getenv("HF_TOKEN", ""))
     if not token:
         return None
     try:
@@ -261,24 +270,119 @@ def get_hf_client():
 # Utility Helpers
 # -----------------------------
 def info_banner(sp_available: bool) -> None:
-    badge = "Connected" if sp_available else "Demo mode"
-    st.markdown(f"<span class='spotify-badge'>Spotify API: {badge}</span>", unsafe_allow_html=True)
+    badge = "Connected" if sp_available else "Public data mode"
+    st.markdown(f"<span class='spotify-badge'>Music Data Source: {badge}</span>", unsafe_allow_html=True)
+
+
+def pseudo_feature_vector(seed_text: str) -> Dict[str, float]:
+    """Create deterministic, Spotify-like numeric features for fallback datasets."""
+    digest = hashlib.sha256(seed_text.encode("utf-8")).hexdigest()
+    seed = int(digest[:16], 16) % (2**32)
+    rng = np.random.default_rng(seed)
+    return {
+        "danceability": float(np.clip(rng.normal(0.62, 0.18), 0, 1)),
+        "energy": float(np.clip(rng.normal(0.63, 0.2), 0, 1)),
+        "valence": float(np.clip(rng.normal(0.55, 0.2), 0, 1)),
+        "tempo": float(np.clip(rng.normal(118, 28), 60, 190)),
+        "acousticness": float(np.clip(rng.normal(0.35, 0.23), 0, 1)),
+        "instrumentalness": float(np.clip(rng.normal(0.16, 0.2), 0, 1)),
+        "speechiness": float(np.clip(rng.normal(0.11, 0.09), 0, 1)),
+    }
+
+
+@st.cache_data(show_spinner=False)
+def search_itunes_albums(query: str, limit: int = 9) -> List[dict]:
+    endpoint = "https://itunes.apple.com/search"
+    try:
+        response = requests.get(
+            endpoint,
+            params={"term": query, "entity": "album", "limit": limit},
+            timeout=10,
+        )
+        if response.status_code != 200:
+            return []
+        results = response.json().get("results", [])
+    except Exception:
+        return []
+
+    albums = []
+    for item in results:
+        collection_id = item.get("collectionId")
+        if not collection_id:
+            continue
+        art = item.get("artworkUrl100", "")
+        albums.append(
+            {
+                "id": f"itunes:{collection_id}",
+                "name": item.get("collectionName", "Unknown"),
+                "artists": [{"name": item.get("artistName", "Unknown Artist")}],
+                "release_date": item.get("releaseDate", ""),
+                "images": [{"url": art.replace("100x100", "600x600") if art else ""}],
+                "source": "itunes",
+            }
+        )
+    return albums
 
 
 @st.cache_data(show_spinner=False)
 def search_spotify_albums(query: str, limit: int = 9) -> List[dict]:
     sp = get_spotify_client()
-    if sp is None:
-        return []
+    if sp is not None:
+        try:
+            data = sp.search(q=query, type="album", limit=limit)
+            items = data.get("albums", {}).get("items", [])
+            if items:
+                for item in items:
+                    item["source"] = "spotify"
+                return items
+        except Exception:
+            pass
+
+    return search_itunes_albums(query, limit=limit)
+
+
+@st.cache_data(show_spinner=False)
+def get_itunes_album_tracks_and_features(collection_id: str) -> pd.DataFrame:
+    endpoint = "https://itunes.apple.com/lookup"
     try:
-        data = sp.search(q=query, type="album", limit=limit)
-        return data.get("albums", {}).get("items", [])
+        response = requests.get(
+            endpoint,
+            params={"id": collection_id, "entity": "song"},
+            timeout=10,
+        )
+        if response.status_code != 200:
+            return pd.DataFrame()
+        results = response.json().get("results", [])
     except Exception:
-        return []
+        return pd.DataFrame()
+
+    rows = []
+    for item in results:
+        if item.get("wrapperType") != "track":
+            continue
+        track_name = item.get("trackName", "Unknown Track")
+        artist_name = item.get("artistName", "Unknown Artist")
+        features = pseudo_feature_vector(f"{artist_name}-{track_name}")
+        rows.append(
+            {
+                "track_id": f"itunes-track-{item.get('trackId', track_name)}",
+                "track_name": track_name,
+                "duration_ms": item.get("trackTimeMillis", 0),
+                "track_number": item.get("trackNumber", len(rows) + 1),
+                **features,
+            }
+        )
+
+    if not rows:
+        return pd.DataFrame()
+    return pd.DataFrame(rows).sort_values("track_number")
 
 
 @st.cache_data(show_spinner=False)
 def get_album_tracks_and_features(album_id: str) -> pd.DataFrame:
+    if str(album_id).startswith("itunes:"):
+        return get_itunes_album_tracks_and_features(str(album_id).split("itunes:", 1)[1])
+
     sp = get_spotify_client()
     if sp is None:
         return pd.DataFrame()
@@ -622,7 +726,39 @@ def lyrics_generator(global_query: str) -> None:
 def fetch_track_candidates(query: str, limit: int = 25) -> pd.DataFrame:
     sp = get_spotify_client()
     if sp is None:
-        return pd.DataFrame()
+        endpoint = "https://itunes.apple.com/search"
+        try:
+            response = requests.get(
+                endpoint,
+                params={"term": query, "entity": "song", "limit": limit},
+                timeout=10,
+            )
+            if response.status_code != 200:
+                return pd.DataFrame()
+            tracks = response.json().get("results", [])
+        except Exception:
+            return pd.DataFrame()
+
+        rows = []
+        for t in tracks:
+            track_name = t.get("trackName")
+            artist_name = t.get("artistName")
+            if not track_name or not artist_name:
+                continue
+            features = pseudo_feature_vector(f"{artist_name}-{track_name}")
+            rows.append(
+                {
+                    "id": f"itunes-{t.get('trackId', track_name)}",
+                    "name": track_name,
+                    "artist": artist_name,
+                    "album": t.get("collectionName", "Unknown Album"),
+                    "external_url": t.get("trackViewUrl", ""),
+                    "preview_url": t.get("previewUrl", ""),
+                    **features,
+                }
+            )
+
+        return pd.DataFrame(rows)
 
     try:
         result = sp.search(q=query, type="track", limit=limit)
@@ -715,8 +851,13 @@ def similarity_finder(global_query: str) -> None:
             st.markdown(f"**{rec['name']}**")
             st.caption(f"{rec['artist']}")
             st.caption(f"Album: {rec['album']}")
-            if rec.get("external_url"):
-                spotify_embed(rec["external_url"], height=120)
+            rec_url = str(rec.get("external_url", ""))
+            if rec_url and "open.spotify.com" in rec_url:
+                spotify_embed(rec_url, height=120)
+            elif rec.get("preview_url"):
+                st.audio(rec.get("preview_url"))
+            elif rec_url:
+                st.markdown(f"[Open Track]({rec_url})")
             st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -894,6 +1035,40 @@ def search_tracks_for_playlist(queries: List[str], cap: int = 15) -> pd.DataFram
     sp = get_spotify_client()
     if sp is None:
         rows = []
+        for q in queries:
+            try:
+                response = requests.get(
+                    "https://itunes.apple.com/search",
+                    params={"term": q, "entity": "song", "limit": 2},
+                    timeout=10,
+                )
+                if response.status_code != 200:
+                    continue
+                items = response.json().get("results", [])
+                for t in items:
+                    track = t.get("trackName")
+                    artist = t.get("artistName")
+                    if not track or not artist:
+                        continue
+                    rows.append(
+                        {
+                            "order": len(rows) + 1,
+                            "track": track,
+                            "artist": artist,
+                            "reason": f"Selected from mood phrase: {q}",
+                            "url": t.get("trackViewUrl", ""),
+                        }
+                    )
+                    if len(rows) >= cap:
+                        return pd.DataFrame(rows)
+            except Exception:
+                continue
+
+        if rows:
+            return pd.DataFrame(rows)
+
+        # Last-resort fallback if public endpoints are unavailable.
+        rows = []
         for i, q in enumerate(queries[:cap], 1):
             rows.append(
                 {
@@ -986,7 +1161,7 @@ def playlist_curator(global_query: str) -> None:
 # Main App Shell
 # -----------------------------
 def render_header() -> str:
-    st.markdown("<div class='main-title'>AI Music Hub</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-title'>Sonic Insight</div>", unsafe_allow_html=True)
     st.markdown(
         "<div class='sub-title'>Analyze albums, generate lyrics, find musical twins, predict genres, and curate playlists.</div>",
         unsafe_allow_html=True,
@@ -1000,7 +1175,7 @@ def render_header() -> str:
 
 def sidebar_nav() -> str:
     with st.sidebar:
-        st.markdown("<div class='sidebar-header'>AI Music Hub</div>", unsafe_allow_html=True)
+        st.markdown("<div class='sidebar-header'>Sonic Insight</div>", unsafe_allow_html=True)
         st.caption("Spotify-like AI workstation")
 
         # Icon + label navigation.
@@ -1015,7 +1190,7 @@ def sidebar_nav() -> str:
         info_banner(sp_ok)
 
         if not sp_ok:
-            st.info("Set SPOTIPY_CLIENT_ID and SPOTIPY_CLIENT_SECRET in secrets/env for full functionality.")
+            st.info("Running in no-key mode with public music data. Add Spotify keys later for full Spotify-native results.")
 
         return feature_name
 
