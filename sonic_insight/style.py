@@ -40,6 +40,43 @@ def inject_css() -> None:
             margin-bottom: 1rem;
         }
 
+        .nav-shell {
+            background: linear-gradient(180deg, #111 0%, #0b0b0b 100%);
+            border: 1px solid #252525;
+            border-radius: 16px;
+            padding: 0.6rem 0.9rem 0.2rem 0.9rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+        }
+
+        .nav-title {
+            font-size: 0.82rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #9aa0a6;
+            margin-bottom: 0.35rem;
+        }
+
+        .home-widget {
+            background: linear-gradient(150deg, #141414 0%, #101010 100%);
+            border: 1px solid #252525;
+            border-radius: 14px;
+            padding: 0.95rem;
+            min-height: 135px;
+        }
+
+        .home-widget h4 {
+            margin: 0 0 0.35rem 0;
+            font-size: 1.02rem;
+        }
+
+        .home-widget p {
+            color: #b5b5b5;
+            margin: 0;
+            font-size: 0.88rem;
+            line-height: 1.4;
+        }
+
         .feature-card {
             background: #121212;
             border: 1px solid #212121;

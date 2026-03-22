@@ -16,6 +16,7 @@ from sonic_insight.features import (
     playlist_curator,
     similarity_finder,
 )
+from sonic_insight.home import render_home
 from sonic_insight.style import inject_css
 from sonic_insight.utils import info_banner
 
@@ -49,15 +50,39 @@ def render_header() -> str:
 
 
 def top_nav() -> str:
-    st.markdown("### Menu")
-    display_options = list(NAV_ITEMS.values())
-    selected_display = st.radio(
-        "Navigation",
-        display_options,
-        horizontal=True,
-        label_visibility="collapsed",
-    )
-    return [k for k, v in NAV_ITEMS.items() if v == selected_display][0]
+    if "selected_feature" not in st.session_state:
+        st.session_state["selected_feature"] = "Home"
+
+    keys = list(NAV_ITEMS.keys())
+    current = st.session_state.get("selected_feature", "Home")
+    if current not in keys:
+        current = "Home"
+
+    st.markdown("<div class='nav-shell'>", unsafe_allow_html=True)
+    st.markdown("<div class='nav-title'>Navigation</div>", unsafe_allow_html=True)
+
+    if hasattr(st, "segmented_control"):
+        selected = st.segmented_control(
+            "Navigation",
+            options=keys,
+            default=current,
+            format_func=lambda key: NAV_ITEMS[key],
+            label_visibility="collapsed",
+        )
+    else:
+        display_options = [NAV_ITEMS[k] for k in keys]
+        selected_display = st.radio(
+            "Navigation",
+            display_options,
+            horizontal=True,
+            label_visibility="collapsed",
+            index=keys.index(current),
+        )
+        selected = [k for k, v in NAV_ITEMS.items() if v == selected_display][0]
+
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.session_state["selected_feature"] = selected
+    return selected
 
 
 def main() -> None:
@@ -65,7 +90,9 @@ def main() -> None:
     selected = top_nav()
     global_query = render_header()
 
-    if selected == "Album Analyzer":
+    if selected == "Home":
+        render_home()
+    elif selected == "Album Analyzer":
         album_analyzer(global_query)
     elif selected == "Lyrics Generator":
         lyrics_generator(global_query)

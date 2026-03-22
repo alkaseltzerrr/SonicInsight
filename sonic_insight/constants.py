@@ -9,6 +9,7 @@ FEATURE_COLUMNS = [
 ]
 
 NAV_ITEMS = {
+    "Home": "🏠 Home",
     "Album Analyzer": "🎵 Album Analyzer",
     "Lyrics Generator": "✍️ Lyrics Generator",
     "Similarity Finder": "🔎 Similarity Finder",

@@ -337,7 +337,9 @@ def playlist_curator(global_query: str) -> None:
     st.subheader("Playlist Curator")
     st.caption("Create mood-driven playlists with explainable track picks and music links.")
 
-    mood = st.text_input("Mood prompt", value=global_query or "nostalgic 90s rock with hopeful lyrics")
+    prefill = st.session_state.pop("quick_playlist_prompt", "") if "quick_playlist_prompt" in st.session_state else ""
+    mood_default = prefill or global_query or "nostalgic 90s rock with hopeful lyrics"
+    mood = st.text_input("Mood prompt", value=mood_default)
     energy_slider = st.slider("Target energy", 0.0, 1.0, 0.6, 0.05)
 
     if st.button("Curate Playlist"):
