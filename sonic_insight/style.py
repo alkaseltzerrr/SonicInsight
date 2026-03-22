@@ -61,12 +61,13 @@ def inject_css() -> None:
             background: linear-gradient(150deg, #141414 0%, #101010 100%);
             border: 1px solid #252525;
             border-radius: 14px;
-            padding: 0.95rem;
-            min-height: 135px;
+            padding: 1.05rem;
+            min-height: 158px;
+            margin-bottom: 0.55rem;
         }
 
         .home-widget h4 {
-            margin: 0 0 0.35rem 0;
+            margin: 0 0 0.55rem 0;
             font-size: 1.02rem;
         }
 
@@ -74,7 +75,25 @@ def inject_css() -> None:
             color: #b5b5b5;
             margin: 0;
             font-size: 0.88rem;
-            line-height: 1.4;
+            line-height: 1.5;
+        }
+
+        .home-row-gap {
+            height: 0.4rem;
+        }
+
+        .quick-widget {
+            background: linear-gradient(160deg, #111 0%, #0d0d0d 100%);
+            border: 1px solid #252525;
+            border-radius: 14px;
+            padding: 0.85rem 0.9rem;
+            min-height: 175px;
+        }
+
+        .quick-widget-title {
+            color: #c7c7c7;
+            font-size: 0.92rem;
+            margin-bottom: 0.3rem;
         }
 
         .feature-card {
@@ -124,6 +143,8 @@ def inject_css() -> None:
             border: none;
             border-radius: 999px;
             font-weight: 700;
+            min-height: 2.55rem;
+            padding: 0.45rem 1rem;
         }
 
         .stButton > button:hover {
