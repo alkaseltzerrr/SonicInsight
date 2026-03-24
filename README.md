@@ -1,5 +1,8 @@
 # Sonic Insight
 
+> [!WARNING]
+> **UNDER DEVELOPMENT**: This project is actively being built and may change frequently.
+
 Your cozy little AI music lab with big main-stage energy.
 
 Sonic Insight is a Spotify-style Streamlit app where you can explore albums, generate lyrics, discover similar tracks, predict genre vibes, and auto-curate playlists from mood prompts.
