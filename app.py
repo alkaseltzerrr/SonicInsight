@@ -5,6 +5,8 @@ Deploy:
 2) streamlit run app.py
 """
 
+import os
+
 import streamlit as st
 
 from sonic_insight.clients import get_spotify_client
@@ -31,9 +33,14 @@ NAV_STATE_KEY = "top_nav_feature"
 THEME_STATE_KEY = "theme_mode"
 
 
+def resolve_default_theme() -> str:
+    raw = os.getenv("SONIC_INSIGHT_DEFAULT_THEME", "dark").strip().lower()
+    return "Light" if raw == "light" else "Dark"
+
+
 def init_theme_state() -> None:
     if THEME_STATE_KEY not in st.session_state:
-        st.session_state[THEME_STATE_KEY] = "Dark"
+        st.session_state[THEME_STATE_KEY] = resolve_default_theme()
 
 
 def render_header() -> str:

@@ -37,6 +37,25 @@ streamlit run app.py
 
 Then open: http://localhost:8501
 
+## Theme Default
+
+You can control the app's startup theme with an environment variable:
+
+- `SONIC_INSIGHT_DEFAULT_THEME=dark` (default)
+- `SONIC_INSIGHT_DEFAULT_THEME=light`
+
+Examples:
+
+```powershell
+$env:SONIC_INSIGHT_DEFAULT_THEME="light"
+streamlit run app.py
+```
+
+```cmd
+set SONIC_INSIGHT_DEFAULT_THEME=light
+streamlit run app.py
+```
+
 ## Notes
 
 - Spotify keys unlock the full experience.
