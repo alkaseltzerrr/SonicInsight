@@ -28,6 +28,12 @@ st.set_page_config(
 )
 
 NAV_STATE_KEY = "top_nav_feature"
+THEME_STATE_KEY = "theme_mode"
+
+
+def init_theme_state() -> None:
+    if THEME_STATE_KEY not in st.session_state:
+        st.session_state[THEME_STATE_KEY] = "Dark"
 
 
 def render_header() -> str:
@@ -42,8 +48,23 @@ def render_header() -> str:
         sp_ok = get_spotify_client() is not None
         info_banner(sp_ok)
     with mode_col:
-        if not sp_ok:
-            st.caption("No-key mode active with public music data. Add Spotify keys later for full Spotify-native results.")
+        status_col, theme_col = st.columns([3, 1])
+        with status_col:
+            if not sp_ok:
+                st.caption("No-key mode active with public music data. Add Spotify keys later for full Spotify-native results.")
+        with theme_col:
+            st.caption("Theme")
+            current_theme = st.session_state.get(THEME_STATE_KEY, "Dark")
+            selected_theme = st.selectbox(
+                "Theme",
+                ["Dark", "Light"],
+                index=0 if current_theme == "Dark" else 1,
+                key="theme_selectbox",
+                label_visibility="collapsed",
+            )
+            if selected_theme != current_theme:
+                st.session_state[THEME_STATE_KEY] = selected_theme
+                st.rerun()
 
     st.caption("Search")
     global_query = st.text_input(
@@ -85,7 +106,8 @@ def top_nav() -> str:
 
 
 def main() -> None:
-    inject_css()
+    init_theme_state()
+    inject_css(st.session_state.get(THEME_STATE_KEY, "Dark").lower())
     selected = top_nav()
     global_query = render_header()
 
