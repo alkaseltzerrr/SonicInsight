@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import re
+import time
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -37,6 +38,57 @@ def report_error(action: str, error: Exception, **context) -> None:
     )
 
 
+def _retry_wait_seconds(response, attempt: int) -> float:
+    retry_after = response.headers.get("Retry-After") if response is not None else None
+    if retry_after:
+        try:
+            return max(0.0, float(retry_after))
+        except ValueError:
+            pass
+    return float(2**attempt)
+
+
+def get_with_retry(url: str, *, params: Optional[dict], timeout: int, action: str, max_attempts: int = 3):
+    for attempt in range(max_attempts):
+        try:
+            response = requests.get(url, params=params, timeout=timeout)
+
+            if response.status_code == 429 and attempt < max_attempts - 1:
+                wait_s = _retry_wait_seconds(response, attempt)
+                logger.warning(
+                    "Rate limited | action=%s | attempt=%s/%s | wait=%.2fs",
+                    action,
+                    attempt + 1,
+                    max_attempts,
+                    wait_s,
+                )
+                time.sleep(wait_s)
+                continue
+
+            if 500 <= response.status_code < 600 and attempt < max_attempts - 1:
+                wait_s = _retry_wait_seconds(response, attempt)
+                logger.warning(
+                    "Transient upstream error | action=%s | status=%s | attempt=%s/%s | wait=%.2fs",
+                    action,
+                    response.status_code,
+                    attempt + 1,
+                    max_attempts,
+                    wait_s,
+                )
+                time.sleep(wait_s)
+                continue
+
+            return response
+        except requests.RequestException as exc:
+            report_error(action, exc, attempt=attempt + 1, max_attempts=max_attempts, url=url)
+            if attempt < max_attempts - 1:
+                time.sleep(float(2**attempt))
+                continue
+            return None
+
+    return None
+
+
 def info_banner(sp_available: bool) -> None:
     badge = "Connected" if sp_available else "Public data mode"
     st.markdown(f"<span class='spotify-badge'>Music Data Source: {badge}</span>", unsafe_allow_html=True)
@@ -62,12 +114,13 @@ def pseudo_feature_vector(seed_text: str) -> Dict[str, float]:
 def search_itunes_albums(query: str, limit: int = 9) -> List[dict]:
     endpoint = "https://itunes.apple.com/search"
     try:
-        response = requests.get(
+        response = get_with_retry(
             endpoint,
             params={"term": query, "entity": "album", "limit": limit},
             timeout=10,
+            action="search_itunes_albums",
         )
-        if response.status_code != 200:
+        if response is None or response.status_code != 200:
             return []
         results = response.json().get("results", [])
     except Exception as exc:
@@ -114,15 +167,17 @@ def search_spotify_albums(query: str, limit: int = 9) -> List[dict]:
 def get_itunes_album_tracks_and_features(collection_id: str) -> pd.DataFrame:
     endpoint = "https://itunes.apple.com/lookup"
     try:
-        response = requests.get(
+        response = get_with_retry(
             endpoint,
             params={"id": collection_id, "entity": "song"},
             timeout=10,
+            action="get_itunes_album_tracks_and_features",
         )
-        if response.status_code != 200:
+        if response is None or response.status_code != 200:
             return pd.DataFrame()
         results = response.json().get("results", [])
-    except Exception:
+    except Exception as exc:
+        report_error("get_itunes_album_tracks_and_features", exc, collection_id=collection_id)
         return pd.DataFrame()
 
     rows = []
@@ -190,8 +245,13 @@ def get_album_tracks_and_features(album_id: str) -> pd.DataFrame:
 def fetch_lyrics(artist: str, title: str) -> str:
     endpoint = f"https://api.lyrics.ovh/v1/{artist}/{title}"
     try:
-        response = requests.get(endpoint, timeout=8)
-        if response.status_code == 200:
+        response = get_with_retry(
+            endpoint,
+            params=None,
+            timeout=8,
+            action="fetch_lyrics",
+        )
+        if response is not None and response.status_code == 200:
             data = response.json()
             return data.get("lyrics", "")[:4000]
     except Exception as exc:
@@ -310,15 +370,17 @@ def fetch_track_candidates(query: str, limit: int = 25) -> pd.DataFrame:
     if sp is None:
         endpoint = "https://itunes.apple.com/search"
         try:
-            response = requests.get(
+            response = get_with_retry(
                 endpoint,
                 params={"term": query, "entity": "song", "limit": limit},
                 timeout=10,
+                action="fetch_track_candidates",
             )
-            if response.status_code != 200:
+            if response is None or response.status_code != 200:
                 return pd.DataFrame()
             tracks = response.json().get("results", [])
-        except Exception:
+        except Exception as exc:
+            report_error("fetch_track_candidates_itunes", exc, query=query, limit=limit)
             return pd.DataFrame()
 
         rows = []
@@ -489,12 +551,13 @@ def search_tracks_for_playlist(queries: List[str], cap: int = 15) -> pd.DataFram
         rows = []
         for q in queries:
             try:
-                response = requests.get(
+                response = get_with_retry(
                     "https://itunes.apple.com/search",
                     params={"term": q, "entity": "song", "limit": 2},
                     timeout=10,
+                    action="search_tracks_for_playlist",
                 )
-                if response.status_code != 200:
+                if response is None or response.status_code != 200:
                     continue
                 items = response.json().get("results", [])
                 for t in items:
@@ -513,7 +576,8 @@ def search_tracks_for_playlist(queries: List[str], cap: int = 15) -> pd.DataFram
                     )
                     if len(rows) >= cap:
                         return pd.DataFrame(rows)
-            except Exception:
+            except Exception as exc:
+                report_error("search_tracks_for_playlist_itunes", exc, query=q)
                 continue
 
         if rows:
