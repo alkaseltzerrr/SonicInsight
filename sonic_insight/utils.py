@@ -357,8 +357,17 @@ def fetch_track_candidates(query: str, limit: int = 25) -> pd.DataFrame:
 
 
 def nearest_neighbors(df: pd.DataFrame, query_vector: np.ndarray, top_k: int = 8) -> pd.DataFrame:
-    X = df[FEATURE_COLUMNS].values.astype("float32")
-    q = query_vector.astype("float32").reshape(1, -1)
+    X_raw = df[FEATURE_COLUMNS].values.astype("float32")
+    q_raw = query_vector.astype("float32").reshape(1, -1)
+
+    # Normalize each feature to [0, 1] using candidate-pool bounds so tempo and
+    # other larger-scale features do not dominate nearest-neighbor distance.
+    mins = X_raw.min(axis=0, keepdims=True)
+    maxs = X_raw.max(axis=0, keepdims=True)
+    denom = np.where((maxs - mins) == 0, 1.0, (maxs - mins))
+
+    X = (X_raw - mins) / denom
+    q = np.clip((q_raw - mins) / denom, 0.0, 1.0)
 
     if faiss is not None:
         index = faiss.IndexFlatL2(X.shape[1])
