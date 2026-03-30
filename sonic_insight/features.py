@@ -25,6 +25,11 @@ from sonic_insight.utils import (
 )
 
 
+def current_plotly_template() -> str:
+    theme = str(st.session_state.get("theme_mode", "Dark")).lower()
+    return "plotly_white" if theme == "light" else "plotly_dark"
+
+
 def album_analyzer(global_query: str) -> None:
     st.subheader("Album Analyzer")
     st.caption("Search albums, inspect mood trends, and run lyric sentiment analysis.")
@@ -72,7 +77,7 @@ def album_analyzer(global_query: str) -> None:
         title="Mood Trend Across Album Tracks",
         color_discrete_sequence=["#1DB954", "#00C2FF", "#F4D03F"],
     )
-    fig.update_layout(template="plotly_dark", xaxis_title="Track", yaxis_title="Score")
+    fig.update_layout(template=current_plotly_template(), xaxis_title="Track", yaxis_title="Score")
     st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("### Lyrics Sentiment")
@@ -105,7 +110,7 @@ def album_analyzer(global_query: str) -> None:
             title="Lyric Sentiment Confidence",
             color_discrete_map={"POSITIVE": "#1DB954", "NEGATIVE": "#E74C3C", "NEUTRAL": "#95A5A6"},
         )
-        sent_fig.update_layout(template="plotly_dark")
+        sent_fig.update_layout(template=current_plotly_template())
         st.plotly_chart(sent_fig, use_container_width=True)
 
 
@@ -294,7 +299,7 @@ def genre_predictor(global_query: str) -> None:
         title="Genre Classifier Confusion Matrix",
         text_auto=True,
     )
-    cm_fig.update_layout(template="plotly_dark")
+    cm_fig.update_layout(template=current_plotly_template())
     st.plotly_chart(cm_fig, use_container_width=True)
 
     option = st.radio("Prediction input", ["Track search", "Audio upload"], horizontal=True)
@@ -329,7 +334,7 @@ def genre_predictor(global_query: str) -> None:
             color_continuous_scale=[[0, "#222"], [1, "#1DB954"]],
             title="Genre Probability Distribution",
         )
-        pfig.update_layout(template="plotly_dark")
+        pfig.update_layout(template=current_plotly_template())
         st.plotly_chart(pfig, use_container_width=True)
 
 
