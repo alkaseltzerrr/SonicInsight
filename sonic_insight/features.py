@@ -258,6 +258,7 @@ def similarity_finder(global_query: str) -> None:
             st.markdown("</div>", unsafe_allow_html=True)
 
 
+@st.cache_data(show_spinner=False)
 def train_genre_model(df: pd.DataFrame):
     if df.empty or len(df["genre"].unique()) < 2:
         return None, None, None, None
