@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import re
 from typing import Dict, List, Optional, Tuple
 
@@ -20,6 +21,20 @@ try:
     import librosa
 except Exception:
     librosa = None
+
+
+logger = logging.getLogger(__name__)
+
+
+def report_error(action: str, error: Exception, **context) -> None:
+    context_str = ", ".join(f"{k}={v!r}" for k, v in context.items()) or "no_context"
+    logger.warning(
+        "Sonic Insight failure | action=%s | context=%s | error=%s",
+        action,
+        context_str,
+        repr(error),
+        exc_info=True,
+    )
 
 
 def info_banner(sp_available: bool) -> None:
@@ -55,7 +70,8 @@ def search_itunes_albums(query: str, limit: int = 9) -> List[dict]:
         if response.status_code != 200:
             return []
         results = response.json().get("results", [])
-    except Exception:
+    except Exception as exc:
+        report_error("search_itunes_albums", exc, query=query, limit=limit)
         return []
 
     albums = []
@@ -165,7 +181,8 @@ def get_album_tracks_and_features(album_id: str) -> pd.DataFrame:
             rows.append(row)
 
         return pd.DataFrame(rows).sort_values("track_number")
-    except Exception:
+    except Exception as exc:
+        report_error("get_album_tracks_and_features", exc, album_id=album_id)
         return pd.DataFrame()
 
 
@@ -177,8 +194,8 @@ def fetch_lyrics(artist: str, title: str) -> str:
         if response.status_code == 200:
             data = response.json()
             return data.get("lyrics", "")[:4000]
-    except Exception:
-        pass
+    except Exception as exc:
+        report_error("fetch_lyrics", exc, artist=artist, title=title)
     return ""
 
 
@@ -352,7 +369,8 @@ def fetch_track_candidates(query: str, limit: int = 25) -> pd.DataFrame:
             )
 
         return pd.DataFrame(rows).dropna()
-    except Exception:
+    except Exception as exc:
+        report_error("fetch_track_candidates", exc, query=query, limit=limit)
         return pd.DataFrame()
 
 
